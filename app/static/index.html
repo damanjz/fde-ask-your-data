@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Larkfield ask-your-data (simulated demo)</title>
+<style>
+  :root {
+    --bg: #f6f4f0; --surface: #fff; --ink: #1f1b16; --muted: #7a7266; --line: #e4dfd6;
+    --accent: #5a3b22; --accent-ink: #fff; --code: #efe9de; --warn: #8a5a12; --warn-bg: #fbf3e2; --err: #a3362b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16130f; --surface: #1e1a15; --ink: #ece6db; --muted: #9a9183; --line: #342e26;
+      --accent: #d6b48c; --accent-ink: #1a140d; --code: #2c261e; --warn: #e0b45c; --warn-bg: #2a2214; --err: #e07a6e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  header { padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 16px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); color: var(--ink); font: inherit; }
+  button { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
+    font: inherit; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .chips { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { background: var(--code); color: var(--ink); padding: 4px 10px; font-size: 13px; }
+  .card { margin-top: 16px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .card h2 { margin: 0 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  pre { margin: 0; padding: 10px; background: var(--code); border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 13px; }
+  .err { color: var(--err); }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Larkfield Coffee Co. - ask your data</h1>
+  <p>Simulated customer and simulated data. Read-only: answers come from SQL you can see below.</p>
+</header>
+<main>
+  <form id="f">
+    <input id="q" type="text" maxlength="1500" autocomplete="off" autofocus
+           placeholder="e.g. How many orders did we get last month?">
+    <button id="go" type="submit">Ask</button>
+  </form>
+  <div class="chips" id="chips"></div>
+  <div id="out"></div>
+</main>
+<script>
+const samples = [
+  "How many orders did we get last month?",
+  "Return rate by category last quarter?",
+  "Which month had the most support tickets?",
+  "Is saal ka total revenue kitna hua?"
+];
+const out = document.getElementById("out"), q = document.getElementById("q"), go = document.getElementById("go");
+const chips = document.getElementById("chips");
+samples.forEach(s => {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = s;
+  b.onclick = () => { q.value = s; ask(); }; chips.appendChild(b);
+});
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function card(title) { const c = el("div", "card"); c.appendChild(el("h2", null, title)); return c; }
+function render(r) {
+  out.replaceChildren();
+  if (r.refused) {
+    const c = card("Declined"); c.appendChild(el("div", "note", r.refusal_message || r.refused_reason));
+    out.appendChild(c);
+  }
+  if (r.error) { const c = card("Error"); c.appendChild(el("div", "err", r.error)); out.appendChild(c); }
+  if (r.summary && !r.refused) { const c = card("Answer"); c.appendChild(el("div", null, r.summary)); out.appendChild(c); }
+  if (r.sql) { const c = card("SQL"); c.appendChild(el("pre", null, r.sql)); out.appendChild(c); }
+  if (r.columns && r.columns.length) {
+    const c = card("Result (" + r.row_count + " rows" + (r.row_count > r.rows.length ? ", first " + r.rows.length + " shown" : "") + ")");
+    const wrap = el("div", "scroll"), t = el("table"), h = el("tr");
+    r.columns.forEach(n => h.appendChild(el("th", null, n))); t.appendChild(h);
+    r.rows.forEach(row => {
+      const tr = el("tr");
+      row.forEach(v => tr.appendChild(el("td", typeof v === "number" ? "num" : "", v === null ? "" : String(v))));
+      t.appendChild(tr);
+    });
+    wrap.appendChild(t); c.appendChild(wrap);
+    if (r.summary_faithful === false) c.appendChild(el("div", "meta", "The written summary was dropped because it quoted numbers that are not in the rows."));
+    out.appendChild(c);
+  }
+  if (r.usage) out.appendChild(el("div", "meta", r.usage.latency_ms + " ms, " + r.usage.prompt_tokens + " prompt + " + r.usage.completion_tokens + " completion tokens"));
+}
+async function ask() {
+  const question = q.value.trim(); if (!question) return;
+  go.disabled = true; out.replaceChildren(el("div", "meta", "Thinking..."));
+  try {
+    const res = await fetch("/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+    render(await res.json());
+  } catch (e) { out.replaceChildren(el("div", "err", "Request failed: " + e)); }
+  go.disabled = false;
+}
+document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); ask(); });
+</script>
+</body>
+</html>

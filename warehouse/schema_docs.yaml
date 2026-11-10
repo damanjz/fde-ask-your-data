@@ -1,0 +1,129 @@
+# What the agent reads. One line per table and per column: meaning, units, allowed values.
+# A column is either "type | meaning" or {type, doc, values: [...]} / {type, doc, sample: true}.
+# `values` are checked against the database by tests; `sample: true` columns get live sample values.
+# The tables listed here are also the guardrail table allowlist.
+
+as_of: "2026-10-31"
+today: "2026-11-10"
+
+conventions:
+  - "Today is 2026-11-10. The warehouse holds 2025-11-01 to 2026-10-31 (loaded at month end); November 2026 is not loaded."
+  - "Fiscal year runs April to March. FY2026-27 = 2026-04-01 to 2027-03-31. Fiscal quarters: Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar. dim_date has fiscal_year (like 'FY2026-27') and fiscal_quarter (1-4)."
+  - "'last month' = October 2026. 'last quarter' = fiscal Q2 FY2026-27 = 2026-07-01 to 2026-09-30. 'this quarter' = fiscal Q3 so far = 2026-10-01 to 2026-10-31. 'this year' = FY2026-27 so far = 2026-04-01 to 2026-10-31. 'last N days' ends on 2026-10-31 (30 days = 2026-10-02 to 2026-10-31). 'last N months' = the N full months ending October 2026 (3 months = Aug, Sep, Oct 2026)."
+  - "'last year' = FY2025-26, but only 2025-11-01 to 2026-03-31 is loaded: say it is partial. Anything in November 2026 or later (this month, yesterday, this week) has no data: answer UNANSWERABLE."
+  - "'festive season' or 'Diwali' = dim_date.festival = 'Diwali Run-up' (2026-10-12 to 2026-10-31; Diwali itself is 2026-11-08, not loaded). Other festival values: see dim_date.festival."
+  - "'south India' = state in Karnataka, Tamil Nadu, Telangana, Kerala, Andhra Pradesh. Bangalore = Bengaluru, Bombay = Mumbai, Gurgaon = Gurugram, Mysore = Mysuru, Vizag = Visakhapatnam."
+  - "Orders: count only fact_orders.status <> 'cancelled' unless the question is about cancellations. Revenue or sales for orders = SUM(fact_orders.total_inr) (amount paid, incl. shipping, after discount). AOV = AVG(total_inr)."
+  - "Product or category revenue = SUM(fact_order_items.line_total_inr) over non-cancelled orders (before order-level discounts, so it does not add up to order revenue). Gross margin = line_total_inr - quantity * dim_product.unit_cost_inr."
+  - "Return rate = returned order lines / order lines sold, over lines on orders with status = 'delivered', attributed to the order's order_date: COUNT(fact_returns.return_id) / COUNT(fact_order_items rows) using a LEFT JOIN from order lines to fact_returns on order_item_id."
+  - "Express a rate, share or ratio as a percentage 0-100 rounded to 1 decimal unless asked otherwise. Money is whole INR."
+  - "'in <city>' for sales means fact_orders.city (delivery city; gift orders ship to another city). Where customers live is dim_customer_safe.city. signup_channel (how a customer was acquired) is not the same as fact_orders.channel (where the order was placed)."
+  - "'repeat customer' = a customer with more than one non-cancelled order in the period. 'open' or 'backlog' tickets = resolved = false."
+  - "Customer names, emails and phone numbers are not available and must not be requested. Use dim_customer_safe for customers; never reference dim_customer."
+
+relationships:
+  - "fact_orders.customer_key -> dim_customer_safe.customer_key"
+  - "fact_orders.order_date -> dim_date.full_date"
+  - "fact_order_items.order_id -> fact_orders.order_id; fact_order_items.product_key -> dim_product.product_key"
+  - "fact_returns.order_item_id -> fact_order_items.order_item_id (one return per order line); fact_returns.product_key -> dim_product.product_key"
+  - "fact_tickets.order_id -> fact_orders.order_id (null for tickets not about an order); fact_tickets.customer_key -> dim_customer_safe.customer_key; fact_tickets.created_date -> dim_date.full_date"
+
+tables:
+  dim_date:
+    description: "One row per calendar day, 2025-11-01 to 2026-10-31 (365 rows)."
+    columns:
+      full_date: "date | primary key"
+      year: "int | calendar year"
+      quarter: "int | calendar quarter 1-4"
+      month: "int | calendar month 1-12"
+      month_name: "text | English month name, e.g. 'August'"
+      year_month: "text | 'YYYY-MM', e.g. '2026-08'"
+      week_of_year: "int | ISO week number"
+      day_of_week: "int | ISO: 1 = Monday ... 7 = Sunday"
+      day_name: "text | English weekday name"
+      is_weekend: "boolean | true for Saturday and Sunday"
+      fiscal_year: {type: text, doc: "fiscal year label (April-March)", values: ["FY2025-26", "FY2026-27"]}
+      fiscal_quarter: "int | fiscal quarter 1-4 (Q1 = Apr-Jun)"
+      festival: {type: text, doc: "festival or sale period the day falls in; NULL on ordinary days", sample: true}
+
+  dim_product:
+    description: "One row per product (50 rows)."
+    columns:
+      product_key: "int | primary key"
+      sku: "text | product code, e.g. 'BN-001'; prefixes BN beans, BR brewer, GR grinder, KT kettle, AC accessory"
+      product_name: {type: text, doc: "product name; match with ILIKE '%word%' when a user gives a partial name", sample: true}
+      category: {type: text, doc: "product category", values: [beans, brewer, grinder, kettle, accessory]}
+      list_price_inr: "int | current list price in INR (beans were 5% cheaper before 2026-04-01; use fact_order_items.unit_price_inr for the price actually charged)"
+      unit_cost_inr: "int | cost to Larkfield per unit in INR"
+      warranty_months: "int | warranty length in months"
+
+  dim_customer_safe:
+    description: "One row per customer, no personal data (about 2,000 rows). The only customer table you may use."
+    columns:
+      customer_key: "int | primary key"
+      city: {type: text, doc: "city where the customer lives", sample: true}
+      state: {type: text, doc: "state where the customer lives", sample: true}
+      signup_date: "date | when the customer first signed up (first order date for customers who joined in the loaded year)"
+      signup_channel: {type: text, doc: "how the customer was acquired", values: [organic_search, instagram, google_ads, referral, marketplace, email_campaign, offline_store]}
+
+  fact_orders:
+    description: "One row per order (about 8,000 rows)."
+    columns:
+      order_id: "int | primary key"
+      customer_key: "int | buyer"
+      order_date: "date | day the order was placed"
+      channel: {type: text, doc: "where the order was placed", values: [website, mobile_app, marketplace, retail_store]}
+      city: {type: text, doc: "delivery city (retail_store orders: the store city)", sample: true}
+      state: {type: text, doc: "delivery state", sample: true}
+      payment_method: {type: text, doc: "how the customer paid; cod = cash on delivery", values: [upi, credit_card, debit_card, cod, netbanking, wallet]}
+      shipping_method: {type: text, doc: "how it was delivered", values: [standard, express, in_store]}
+      coupon_code: {type: text, doc: "discount code used; NULL when none", sample: true}
+      subtotal_inr: "int | sum of line totals before discount, INR"
+      discount_inr: "int | order-level discount in INR (0 when no coupon)"
+      shipping_fee_inr: "int | shipping charged in INR"
+      total_inr: "int | amount paid = subtotal_inr - discount_inr + shipping_fee_inr"
+      status: {type: text, doc: "order state; shipped = not yet delivered at 2026-10-31", values: [delivered, shipped, cancelled]}
+      delivery_days: "int | days from order to delivery; NULL unless status = 'delivered'"
+
+  fact_order_items:
+    description: "One row per product line in an order (about 13,600 rows)."
+    columns:
+      order_item_id: "int | primary key"
+      order_id: "int | the order"
+      product_key: "int | the product"
+      quantity: "int | units bought"
+      unit_price_inr: "int | price per unit charged, INR"
+      line_total_inr: "int | quantity * unit_price_inr, before order-level discount"
+
+  fact_returns:
+    description: "One row per returned order line (about 560 rows); a line is returned in full."
+    columns:
+      return_id: "int | primary key"
+      order_item_id: "int | the returned line (unique)"
+      order_id: "int | the order"
+      product_key: "int | the product"
+      return_date: "date | day the return was logged"
+      reason: {type: text, doc: "why it was returned", values: [defective, damaged_in_transit, not_as_described, wrong_item, changed_mind, quality_issue]}
+      refund_amount_inr: "int | refund paid in INR"
+
+  fact_tickets:
+    description: "One row per support ticket (about 1,500 rows)."
+    columns:
+      ticket_id: "int | primary key"
+      customer_key: "int | who raised it"
+      order_id: "int | related order; NULL when not about an order"
+      created_date: "date | day the ticket was opened"
+      category: {type: text, doc: "ticket topic", values: [delivery, product_defect, refund, payment, how_to, account, other]}
+      channel: {type: text, doc: "contact channel", values: [email, chat, whatsapp, phone]}
+      first_response_hours: "numeric | hours until the first human reply"
+      resolved: "boolean | true when closed, false when still open (backlog)"
+      resolution_hours: "numeric | hours to resolve; NULL while open"
+      csat_score: "int | customer rating 1-5; NULL when not rated"
+
+examples:
+  - question: "How many orders did Chennai place in January 2026?"
+    sql: "SELECT COUNT(*) AS orders FROM fact_orders WHERE city = 'Chennai' AND order_date BETWEEN '2026-01-01' AND '2026-01-31' AND status <> 'cancelled'"
+  - question: "Total refund amount for Mumbai orders in January 2026"
+    sql: "SELECT SUM(r.refund_amount_inr) AS refund_inr FROM fact_returns r JOIN fact_orders o ON o.order_id = r.order_id WHERE o.city = 'Mumbai' AND r.return_date BETWEEN '2026-01-01' AND '2026-01-31'"
+  - question: "Revenue by product category in Kolkata in December 2025, biggest first"
+    sql: "SELECT p.category, SUM(i.line_total_inr) AS revenue_inr FROM fact_order_items i JOIN fact_orders o ON o.order_id = i.order_id JOIN dim_product p ON p.product_key = i.product_key WHERE o.city = 'Kolkata' AND o.status <> 'cancelled' AND o.order_date BETWEEN '2025-12-01' AND '2025-12-31' GROUP BY p.category ORDER BY revenue_inr DESC"

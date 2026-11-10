@@ -1,0 +1,402 @@
+[
+  {
+    "sku": "GR-001",
+    "name": "Larkfield Hand Burr Grinder Compact",
+    "category": "grinder",
+    "price_inr": 2499,
+    "stock": 5,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-002",
+    "name": "Larkfield Hand Burr Grinder Pro",
+    "category": "grinder",
+    "price_inr": 3999,
+    "stock": 35,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-003",
+    "name": "Larkfield Electric Burr Grinder Everyday",
+    "category": "grinder",
+    "price_inr": 5499,
+    "stock": 90,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-004",
+    "name": "Larkfield Electric Burr Grinder Precision",
+    "category": "grinder",
+    "price_inr": 8999,
+    "stock": 90,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-005",
+    "name": "Larkfield Conical Burr Grinder Slim",
+    "category": "grinder",
+    "price_inr": 6499,
+    "stock": 5,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-006",
+    "name": "Larkfield Espresso Grinder 64mm",
+    "category": "grinder",
+    "price_inr": 12999,
+    "stock": 0,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-007",
+    "name": "Larkfield Travel Hand Grinder",
+    "category": "grinder",
+    "price_inr": 1999,
+    "stock": 12,
+    "warranty_months": 24
+  },
+  {
+    "sku": "GR-008",
+    "name": "Larkfield Flat Burr Grinder",
+    "category": "grinder",
+    "price_inr": 10499,
+    "stock": 140,
+    "warranty_months": 24
+  },
+  {
+    "sku": "BR-001",
+    "name": "Ceramic Pour-Over Dripper",
+    "category": "brewer",
+    "price_inr": 1299,
+    "stock": 140,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-002",
+    "name": "Glass Pour-Over Set",
+    "category": "brewer",
+    "price_inr": 1799,
+    "stock": 90,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-003",
+    "name": "French Press 600ml",
+    "category": "brewer",
+    "price_inr": 1499,
+    "stock": 48,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-004",
+    "name": "French Press 1L",
+    "category": "brewer",
+    "price_inr": 1899,
+    "stock": 140,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-005",
+    "name": "Larkfield Press Brewer",
+    "category": "brewer",
+    "price_inr": 2499,
+    "stock": 90,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-006",
+    "name": "Moka Pot 3-Cup",
+    "category": "brewer",
+    "price_inr": 1199,
+    "stock": 60,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-007",
+    "name": "Moka Pot 6-Cup",
+    "category": "brewer",
+    "price_inr": 1599,
+    "stock": 140,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-008",
+    "name": "Electric Drip Brewer 8-Cup",
+    "category": "brewer",
+    "price_inr": 6999,
+    "stock": 0,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-009",
+    "name": "Cold Brew Jar 1L",
+    "category": "brewer",
+    "price_inr": 1399,
+    "stock": 60,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BR-010",
+    "name": "Home Espresso Machine",
+    "category": "brewer",
+    "price_inr": 24999,
+    "stock": 0,
+    "warranty_months": 12
+  },
+  {
+    "sku": "KT-001",
+    "name": "Stovetop Gooseneck Kettle 1.0L",
+    "category": "kettle",
+    "price_inr": 1999,
+    "stock": 12,
+    "warranty_months": 12
+  },
+  {
+    "sku": "KT-002",
+    "name": "Electric Gooseneck Kettle 0.9L",
+    "category": "kettle",
+    "price_inr": 4499,
+    "stock": 3,
+    "warranty_months": 12
+  },
+  {
+    "sku": "KT-003",
+    "name": "Variable Temperature Kettle 0.8L",
+    "category": "kettle",
+    "price_inr": 5999,
+    "stock": 140,
+    "warranty_months": 12
+  },
+  {
+    "sku": "KT-004",
+    "name": "Variable Temperature Kettle Pro",
+    "category": "kettle",
+    "price_inr": 7499,
+    "stock": 0,
+    "warranty_months": 12
+  },
+  {
+    "sku": "KT-005",
+    "name": "Travel Kettle 0.5L",
+    "category": "kettle",
+    "price_inr": 2999,
+    "stock": 5,
+    "warranty_months": 12
+  },
+  {
+    "sku": "BN-001",
+    "name": "House Blend 250g",
+    "category": "beans",
+    "price_inr": 499,
+    "stock": 5,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-002",
+    "name": "Chikmagalur Estate Medium Roast 250g",
+    "category": "beans",
+    "price_inr": 549,
+    "stock": 20,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-003",
+    "name": "Coorg Peaberry 250g",
+    "category": "beans",
+    "price_inr": 579,
+    "stock": 5,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-004",
+    "name": "Araku Valley Light Roast 250g",
+    "category": "beans",
+    "price_inr": 599,
+    "stock": 60,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-005",
+    "name": "Baba Budangiri Medium Dark 250g",
+    "category": "beans",
+    "price_inr": 549,
+    "stock": 3,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-006",
+    "name": "Monsooned Malabar 250g",
+    "category": "beans",
+    "price_inr": 529,
+    "stock": 60,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-007",
+    "name": "Espresso Blend Dark 250g",
+    "category": "beans",
+    "price_inr": 519,
+    "stock": 35,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-008",
+    "name": "Ethiopia Yirgacheffe 250g",
+    "category": "beans",
+    "price_inr": 899,
+    "stock": 0,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-009",
+    "name": "Colombia Huila 250g",
+    "category": "beans",
+    "price_inr": 799,
+    "stock": 12,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-010",
+    "name": "Decaf Swiss Water 250g",
+    "category": "beans",
+    "price_inr": 749,
+    "stock": 0,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-011",
+    "name": "Cold Brew Blend 500g",
+    "category": "beans",
+    "price_inr": 849,
+    "stock": 48,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-012",
+    "name": "House Blend 1kg",
+    "category": "beans",
+    "price_inr": 1799,
+    "stock": 20,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-013",
+    "name": "Sampler Pack 4x100g",
+    "category": "beans",
+    "price_inr": 899,
+    "stock": 0,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-014",
+    "name": "Seasonal Filter Roast 250g",
+    "category": "beans",
+    "price_inr": 649,
+    "stock": 35,
+    "warranty_months": 0
+  },
+  {
+    "sku": "BN-015",
+    "name": "Cappuccino Blend 250g",
+    "category": "beans",
+    "price_inr": 539,
+    "stock": 35,
+    "warranty_months": 0
+  },
+  {
+    "sku": "AC-001",
+    "name": "Digital Coffee Scale with Timer",
+    "category": "accessory",
+    "price_inr": 1499,
+    "stock": 48,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-002",
+    "name": "Grinder Cleaning Tablets",
+    "category": "accessory",
+    "price_inr": 299,
+    "stock": 90,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-003",
+    "name": "Paper Filters V60 (100 pack)",
+    "category": "accessory",
+    "price_inr": 349,
+    "stock": 5,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-004",
+    "name": "Citric Acid Descaler 200g",
+    "category": "accessory",
+    "price_inr": 249,
+    "stock": 35,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-005",
+    "name": "Replacement Burr Set",
+    "category": "accessory",
+    "price_inr": 1299,
+    "stock": 0,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-006",
+    "name": "Ceramic Mug 12oz",
+    "category": "accessory",
+    "price_inr": 599,
+    "stock": 5,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-007",
+    "name": "Insulated Travel Mug",
+    "category": "accessory",
+    "price_inr": 1299,
+    "stock": 90,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-008",
+    "name": "Milk Frothing Jug",
+    "category": "accessory",
+    "price_inr": 799,
+    "stock": 90,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-009",
+    "name": "Coffee Tamper 58mm",
+    "category": "accessory",
+    "price_inr": 999,
+    "stock": 20,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-010",
+    "name": "Bean Storage Canister",
+    "category": "accessory",
+    "price_inr": 1199,
+    "stock": 20,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-011",
+    "name": "Knock Box",
+    "category": "accessory",
+    "price_inr": 1499,
+    "stock": 60,
+    "warranty_months": 6
+  },
+  {
+    "sku": "AC-012",
+    "name": "Brew Thermometer",
+    "category": "accessory",
+    "price_inr": 699,
+    "stock": 8,
+    "warranty_months": 6
+  }
+]

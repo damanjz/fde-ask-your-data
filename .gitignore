@@ -1,0 +1,10 @@
+.env
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+logs/
+evals/results/
+warehouse/out/
+*.pyc
+CLAUDE.md
+.claude/

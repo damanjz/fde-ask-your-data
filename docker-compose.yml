@@ -1,0 +1,37 @@
+name: fde-bi
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: bi_admin
+      POSTGRES_PASSWORD: ${BI_ADMIN_PASSWORD:?set BI_ADMIN_PASSWORD in .env}
+      POSTGRES_DB: larkfield_bi
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - bi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bi_admin -d larkfield_bi"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ANALYST_DSN: postgresql://analyst_ro:${BI_ANALYST_PASSWORD:?set BI_ANALYST_PASSWORD in .env}@db:5432/larkfield_bi
+      OLLAMA_URL: http://host.docker.internal:11434
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:8400:8400"
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  bi_pgdata:
