@@ -164,4 +164,4 @@ Contract for project 5: `app.agent.ask(question) -> dict` with `sql`, `columns`,
 Built with Claude Code as a pair programmer. Scope, design decisions and verification are mine. Larkfield Coffee Co. is a fictional customer; all data is synthetic. MIT licensed (see `LICENSE`).
 
 <!-- signature -->
-<p align="center"><img src="docs/media/signature.gif" width="300" alt="A cat called Mr. Fresh hitting a feeder camera"><br><sub>Signature GIF: <a href="https://commons.wikimedia.org/wiki/File:Mr._Fresh_punches_camera.gif">A cat called Mr. Fresh hitting a feeder camera</a> by Hello Street Cat, Public domain, via Wikimedia Commons.</sub></p>
+<p align="center"><img src="docs/media/signature.gif" width="220" alt="A cat jumping up to kiss its owner"><br><sub>Signature GIF: <a href="https://commons.wikimedia.org/wiki/File:Baiser_de_Nobah.gif">A cat jumping up to kiss its owner</a> by Bernard de Go Mars, CC BY-SA 4.0, via Wikimedia Commons.</sub></p>
