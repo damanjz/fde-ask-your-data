@@ -30,7 +30,9 @@ Scorer limits: G26 (return rate by category) cannot tell 'lines on delivered ord
 | Summary call errors (rows still scored) | 0 | 0 | 0 |
 | Latency p50 / p95 (ms) | 11715 / 19746 | 7644 / 11950 | 9400 / 18627 |
 | Tokens per question (prompt + completion) | 3245 | 1147 | 835 |
-| Summary faithfulness (summary passed the number check) | 35/35 (100%) | 33/33 (100%) | 7/7 (100%) |
+| Summary faithfulness (summary passed the number and superlative checks) | 34/35 (97%) | 32/33 (97%) | 7/7 (100%) |
+
+Summary faithfulness was recomputed on 2026-11-10 from this run's stored outputs after a superlative check was added (the number check alone passed "UPI has the lowest cancellation rate at 2.3%" on G07; wallet is lowest at 1.7%). The check is deterministic, so no model call changes; accuracy is unaffected (a summary never fails correct SQL). Before the fix: 35/35, 33/33, 7/7.
 
 ## Failed questions: agent (4)
 

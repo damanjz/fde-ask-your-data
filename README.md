@@ -1,13 +1,75 @@
 # Ask-your-data agent (text-to-SQL)
 
-FDE Portfolio project 4. A chat agent for the BI warehouse of **Larkfield Coffee Co., a fictional (simulated) customer**. All data, people and contact details are synthetic. Ops and marketing leads ask questions in English or light Hinglish; the agent writes SQL, runs it read-only, shows the SQL and the rows, and writes a short summary whose numbers are checked against the rows. It never writes data and never returns customer names, emails or phone numbers.
+A chat agent for the BI warehouse of Larkfield Coffee Co., a fictional customer: ops and marketing leads ask in English or light Hinglish, and get SQL, rows and a checked summary, read-only. It never writes data and never returns customer names, emails or phone numbers.
 
-## Eval results
+[![Ask-your-data demo reel](docs/media/reel.gif)](docs/media/reel.mp4)
+<sub>29-second reel. Click for the full video.</sub>
 
-**Live run 2 (final), 2026-11-10, `fusion27b:iq3`. Numbers are copied from `evals/report.md`.** Execution accuracy on the 40-question gold set (`evals/gold.jsonl`), same model in all three columns:
+| Agent accuracy | DDL baseline | Floor |
+|---|---|---|
+| **36/40 (90%)** execution accuracy on the 40-question gold set | **17/40 (42%)** same model, raw CREATE TABLE text only | **7/40 (18%)** same model, table names only |
+
+<sub>Source: `evals/report-live2-2026-11-10.md` (final live run, `fusion27b:iq3`). Wilson 95% intervals are in the results below.</sub>
+
+## The problem
+
+Larkfield's ops and marketing leads send the same shapes of question to one analyst ("returns rate for grinders last quarter?", "top 5 beans by revenue in Bengaluru?"), who is the bottleneck. The leads will not learn SQL and will not accept a tool that changes data or exposes customers. All data, people and contact details here are synthetic.
+
+## Architecture
+
+![Architecture: question screen, schema-docs prompt, local model, SQL checks, read-only database role, summary checks, answer](docs/diagrams/architecture.svg)
+
+- **The database role is the control that must hold.** The parser and the pre-filter are extra layers; `analyst_ro` can only read the facts, dims and a PII-free customer view, whatever the model writes.
+- **Definitions live in `warehouse/schema_docs.yaml`.** Revenue, return rate, repeat customer, fiscal quarter and vague time words ("last month", "this year") are written down once, so the model does not guess them. This is why the agent beats a bare schema.
+- **The summary is checked, not trusted.** Every number must appear in the rows, and a "lowest" or "highest" claim must name the right row. A summary that fails is dropped; the SQL and rows are still shown.
+- **One correction round.** A parser or database error gets one retry with a hint. Only attack signatures (a second statement, a write, dangerous functions, quote tricks) are refused outright.
+- **Local and free to run.** A 27B model at IQ3 on one GPU through Ollama, a local Postgres, no external calls.
+
+### Defence in depth
+
+| Layer | What it stops |
+|---|---|
+| Question pre-filter | "delete all cancelled orders", "email addresses of customers". Tuned to let analytic questions through ("tickets by email", "a drop in orders") |
+| Model prompt | refuse writes, PII and prompt-injection; say what data is missing |
+| SQL parser (`app/guardrails.py`) | A real lexer (strings, quoted identifiers, nested comments), single statement, SELECT/WITH only, DDL/DML keywords, `SELECT INTO`, `FOR UPDATE`, table allowlist (CTE shadowing handled), function allowlist (`pg_sleep`, `set_config`, `lo_import`, `dblink`, `version()` and anything else not listed; a CTE named like a function does not exempt a later call), wall-clock functions (the warehouse date is pinned), comments stripped, `LIMIT 200` added. Fixable mistakes (a reserved word as an alias, `CURRENT_DATE`/`NOW()`, a `dim_customer` reference) get one retry with a hint; the second `dim_customer` hit becomes a personal-data refusal |
+| **Database role (the control that must hold)** | `analyst_ro`: SELECT on facts, dims and the view `dim_customer_safe` only; no privilege at all on raw `dim_customer` (name, email, phone); not owner, not superuser; no TEMP or CREATE; `statement_timeout = 5s`, read-only default and `search_path` set on the role; queries run inside `BEGIN READ ONLY`. The loader runs as a non-superuser `bi_owner`; PUBLIC has no privileges on the database |
+| Result cap | server-side cursor, at most 201 rows fetched |
+
+An integration test skips the parser and runs INSERT, DELETE, CREATE TABLE, CREATE TEMP TABLE and `SELECT email FROM dim_customer` as `analyst_ro` against the real database; each fails with a permission or read-only error, including after the session turns read-only mode off.
+
+Local hardening: Postgres and the API bind to 127.0.0.1 only; all passwords come from `.env` (git-ignored; `.env.example` has placeholders); there are no passwords in the code or the compose file. Every request is appended to `logs/requests.jsonl` (question with emails and phones masked, SQL, rows returned, latency, tokens, refused reason, attempts).
+
+### The warehouse
+
+Seeded and deterministic (`python -m warehouse.generate`). Simulated 2025-11-01 to 2026-10-31, star schema:
+
+| Table | Rows | Notes |
+|---|---|---|
+| dim_date | 365 | fiscal year (Apr-Mar), fiscal quarter, festival |
+| dim_product | 50 | reuses the support agent's catalogue; adds unit cost |
+| dim_customer | 2,000 | PII; owner only |
+| dim_customer_safe | 2,000 | view without name, email, phone; the analyst's customer table |
+| fact_orders | 8,034 | channel, city, payment, shipping, coupon, status, delivery days |
+| fact_order_items | 13,596 | |
+| fact_returns | 564 | reason, refund |
+| fact_tickets | 1,456 | category, first response hours, resolved, CSAT |
+
+Patterns baked in (and tested): pre-Diwali gifting ramp from 12 Oct 2026 (Diwali itself is 8 Nov 2026, after the data ends), Black Friday / Christmas / Republic Day / Independence Day / Raksha Bandhan peaks, cold brew in summer and kettles in winter, south-India estate beans vs north/west espresso gear, cash on delivery and returns far higher in tier-2 cities, grinders and kettles returning 6x more than beans, a defect batch on GR-005 (from Feb 2026) and KT-004 (from Apr 2026), a 5% bean price rise on 1 Apr 2026, and a ticket backlog spike in August 2026 caused by a standard-shipping slowdown.
+
+"Today" is pinned to 2026-11-10 and the fiscal year is April-March; `schema_docs.yaml` defines how vague words resolve (last month = Oct 2026, last quarter = Jul-Sep 2026, this year = FY2026-27 to date, revenue, return rate, repeat customer, and so on).
+
+## One request, traced
+
+![Trace of question G07, cancellation rate by payment method, through the guards, SQL, execution and summary checks](docs/diagrams/trace.svg)
+
+Gold question G07 passes the screen, the SQL validates and runs as `analyst_ro`, and the rows are correct. The model's summary named UPI (2.3%) as lowest when wallet (1.7%) is; the number check passes it, the superlative check drops it, and the lead sees the SQL and rows.
+
+## Results
+
+Final live run (run 2), 2026-11-10, `fusion27b:iq3`, from `evals/report-live2-2026-11-10.md`. Execution accuracy on the 40-question gold set (`evals/gold.jsonl`), same model in all three columns:
 
 - **Agent**: schema docs, conventions, sample values and three worked examples.
-- **DDL baseline**: the raw CREATE TABLE text of the allowed tables plus "Today is 2026-11-10", nothing else. This is the standard comparison: what a team gets by pasting its schema into a prompt.
+- **DDL baseline**: the raw CREATE TABLE text of the allowed tables plus "Today is 2026-11-10", nothing else. What a team gets by pasting its schema into a prompt.
 - **Floor**: table names only.
 
 | Category | n | Agent | DDL baseline | Floor |
@@ -54,82 +116,43 @@ The refuse set passed 5/5 for the agent; the baselines each missed one. All 5 ag
 | 1 (`evals/report-live1-2026-11-10.md`) | extra numeric columns always fail | 31/40 (78%, CI 62-88%) | 15/40 (38%) | 6/40 (15%) |
 | 2 (`evals/report-live2-2026-11-10.md`, final) | supporting counts allowed beside a label or a rate | 36/40 (90%, CI 77-96%) | 17/40 (42%) | 7/40 (18%) |
 
-Be plain about the change between the runs: run 1 failed 8 of the agent's 9 misses under the extra-column rule, because the scorer rejected answers that showed a supporting count next to a label or a rate (G04, G12, G07, G26, G28, G31, G32, G35). The rule was refined after run 1 and before run 2 (recorded in `evals/scoring.py` and the spec). Five of those eight (G04, G12, G07, G26, G31) were correct answers and now pass; G28, G32 and G35 were also wrong SQL, which run 2 exposes. So the whole rise from 31 to 36 comes from the scoring change, not from a better agent. The prompt, schema docs and gold set were not tuned between the runs, and run 1 was not rescored. Run 1's raw results are kept in `evals/results/live-run1`. Hedging (two competing counts or averages) still fails.
+Run 1 failed 8 of the agent's 9 misses under the extra-column rule, because the scorer rejected answers that showed a supporting count next to a label or a rate (G04, G12, G07, G26, G28, G31, G32, G35). The rule was refined after run 1 and before run 2 (recorded in `evals/scoring.py` and the spec). Five of those eight (G04, G12, G07, G26, G31) were correct answers and now pass; G28, G32 and G35 were also wrong SQL, which run 2 exposes. So the whole rise from 31 to 36 comes from the scoring change, not from a better agent. The prompt, schema docs and gold set were not tuned between the runs, and run 1 was not rescored. Run 1's raw results are kept in `evals/results/live-run1`. Hedging (two competing counts or averages) still fails.
 
-Run it: `python -m evals.run --variant all` (from this folder; needs the warehouse loaded and Ollama running; GPU-bound, about an hour; run one eval at a time).
+## How it was tested
 
-What is verified without the live model: the pipeline runs end to end for all three variants with a mocked LLM (`python -m evals.run --mock`, which writes under `evals/results/mock` and never touches `evals/report.md`), every gold SQL runs against the generated data, the scorer rejects ten plausible wrong answers (hedged numbers, coarser rounding, swapped labels), and the guardrails and the database role are tested against a red-team list.
-
-## How it works
-
-1. Question in (`POST /ask` or the local page at `http://localhost:8400`).
-2. Pre-filter: blatant write or personal-data requests (imperative "delete the orders", "email addresses of customers") are declined before any model call. It is tuned to let analytic questions through ("tickets by email", "a drop in orders").
-3. Prompt = `warehouse/schema_docs.yaml` (every table and column: meaning, units, allowed values), conventions for time words and metrics, a few live sample values for low-cardinality columns, and three worked examples. One system message per request.
-4. The model replies `PLAN:` plus one fenced `sql` block, or `REFUSE:` or `UNANSWERABLE:`.
-5. Guardrails (parser), then execution as `analyst_ro` in a read-only transaction with a 5 s timeout. One correction round on a parser or database error. Only attack signatures (a second statement, a write as the first word, dangerous functions, quote tricks) are refused outright; a reserved word used as an alias, a `dim_customer` reference, `CURRENT_DATE`/`NOW()` and other fixable mistakes get one retry with a hint (the second `dim_customer` hit becomes a personal-data refusal).
-6. Answer: SQL, up to 50 rows, and a 1-2 sentence summary. Every number in the summary must appear in the rows (after rounding to the precision shown); otherwise the summary is dropped, the rows are still shown, and the drop is logged.
-7. Every request is appended to `logs/requests.jsonl` (question with emails and phones masked, SQL, rows returned, latency, tokens, refused reason, attempts).
-
-### Defence in depth
-
-| Layer | What it stops |
-|---|---|
-| Question pre-filter | "delete all cancelled orders", "email addresses of customers" |
-| Model prompt | refuse writes, PII and prompt-injection; say what data is missing |
-| SQL parser (`app/guardrails.py`) | A real lexer (strings, quoted identifiers, nested comments), single statement, SELECT/WITH only, DDL/DML keywords, `SELECT INTO`, `FOR UPDATE`, table allowlist (CTE shadowing handled), function allowlist (`pg_sleep`, `set_config`, `lo_import`, `dblink`, `version()` and anything else not listed; a CTE named like a function does not exempt a later call), wall-clock functions (the warehouse date is pinned), comments stripped, `LIMIT 200` added |
-| **Database role (the control that must hold)** | `analyst_ro`: SELECT on facts, dims and the view `dim_customer_safe` only; no privilege at all on raw `dim_customer` (name, email, phone); not owner, not superuser; no TEMP or CREATE; `statement_timeout = 5s`, read-only default and `search_path` set on the role; queries run inside `BEGIN READ ONLY`. The loader runs as a non-superuser `bi_owner`; PUBLIC has no privileges on the database |
-| Result cap | server-side cursor, at most 201 rows fetched |
-
-An integration test skips the parser and runs INSERT, DELETE, CREATE TABLE, CREATE TEMP TABLE and `SELECT email FROM dim_customer` as `analyst_ro` against the real database; each fails with a permission or read-only error, including after the session turns read-only mode off.
-
-Local hardening: Postgres and the API bind to 127.0.0.1 only; all passwords come from `.env` (git-ignored; `.env.example` has placeholders); there are no passwords in the code or the compose file.
-
-## The warehouse
-
-Seeded and deterministic (`python -m warehouse.generate`). Simulated 2025-11-01 to 2026-10-31, star schema:
-
-| Table | Rows | Notes |
-|---|---|---|
-| dim_date | 365 | fiscal year (Apr-Mar), fiscal quarter, festival |
-| dim_product | 50 | reuses the support agent's catalogue; adds unit cost |
-| dim_customer | 2,000 | PII; owner only |
-| dim_customer_safe | 2,000 | view without name, email, phone; the analyst's customer table |
-| fact_orders | 8,034 | channel, city, payment, shipping, coupon, status, delivery days |
-| fact_order_items | 13,596 | |
-| fact_returns | 564 | reason, refund |
-| fact_tickets | 1,456 | category, first response hours, resolved, CSAT |
-
-Patterns baked in (and tested): pre-Diwali gifting ramp from 12 Oct 2026 (Diwali itself is 8 Nov 2026, after the data ends), Black Friday / Christmas / Republic Day / Independence Day / Raksha Bandhan peaks, cold brew in summer and kettles in winter, south-India estate beans vs north/west espresso gear, cash on delivery and returns far higher in tier-2 cities, grinders and kettles returning 6x more than beans, a defect batch on GR-005 (from Feb 2026) and KT-004 (from Apr 2026), a 5% bean price rise on 1 Apr 2026, and a ticket backlog spike in August 2026 caused by a standard-shipping slowdown.
-
-"Today" is pinned to 2026-11-10 and the fiscal year is April-March; `schema_docs.yaml` defines how vague words resolve (last month = Oct 2026, last quarter = Jul-Sep 2026, this year = FY2026-27 to date, revenue, return rate, repeat customer, and so on).
-
-## The gold set
-
-40 questions, written from the generated data before any agent run: 25 `simple`, 10 `complex`, 5 `refuse` (2 DML, 2 PII, 1 unanswerable). Phrased the way ops and marketing leads ask: "last month", "this year", a few in Hinglish. Execution accuracy compares result sets: order-insensitive unless the item is `ordered`; column names ignored. Each item declares a `precision`: the agent value is rounded to it and must match exactly, a coarser value fails (no `ROUND(x, 0)` or integer division against a 1-decimal gold), and `null` means unrounded gold with a 0.5% relative tolerance. Extra agent columns are allowed if non-numeric; an extra numeric column is allowed only as a supporting integer count beside a label-only gold answer or beside a non-integer gold answer (a rate, share, average), so hedging with two candidate numbers still fails (rule refined after live run 1, before live run 2; run 1 is not rescored). Boolean label columns (weekend/weekday, Diwali/other) accept text labels from the item's `label_map`, and swapped labels fail. A summary-model failure never fails a case with correct SQL. Refuse cases also check that the refusal reason fits the kind (DML, PII, unanswerable). Gold SQL gets the same `LIMIT 200` rule as agent SQL. G26 and G28 cannot tell some wrong denominators apart; their notes say which. Few-shot examples in the prompt are not gold questions, and nothing under `app/` reads `evals/`.
-
-## Layout
-
-```
-app/            agent.py (ask), guardrails.py, db.py, llm.py, prompts.py, schema_docs.py, main.py, static/
-warehouse/      generate.py, load.py, schema.sql, roles.sql, schema_docs.yaml, products.json
-evals/          gold.jsonl, scoring.py (score_case), run.py, validate_gold.py, mock_llm.py
-tests/          guardrails, agent (mocked LLM), scoring, warehouse, DB integration, prompts and API
-docs/           spec.md, runbook.md, engagement.md
-```
-
-Contract for project 5: `app.agent.ask(question) -> dict` with `sql`, `columns`, `rows`, `summary`, `refused`, `refused_reason`, `usage`; it never raises. `evals.scoring.score_case(case, result, conn)` is pure apart from the connection argument.
-
-Configuration is read from the settings object on every call, not cached at import: project 5 switches models in-process by setting `app.config.settings.ollama_model` (or the `OLLAMA_MODEL` env var before import). `ask(question, variant=...)` takes `agent`, `ddl` or `floor`.
+- **Gold set.** 40 questions written from the generated data before any agent run: 25 `simple`, 10 `complex`, 5 `refuse` (2 DML, 2 PII, 1 unanswerable). Phrased the way leads ask: "last month", "this year", a few in Hinglish. Few-shot examples in the prompt are not gold questions, and nothing under `app/` reads `evals/`.
+- **Scoring.** Execution accuracy compares result sets: order-insensitive unless the item is `ordered`; column names ignored. Each item declares a `precision`: the agent value is rounded to it and must match exactly, a coarser value fails (no `ROUND(x, 0)` or integer division against a 1-decimal gold), and `null` means unrounded gold with a 0.5% relative tolerance.
+- **Hedging fails.** Extra agent columns are allowed if non-numeric; an extra numeric column is allowed only as a supporting integer count beside a label-only gold answer or beside a non-integer gold answer (a rate, share, average), so two candidate numbers still fail (rule refined after live run 1, before live run 2; run 1 is not rescored). Boolean label columns (weekend/weekday, Diwali/other) accept text labels from the item's `label_map`, and swapped labels fail.
+- **Summaries and refusals.** A summary-model failure never fails a case with correct SQL. Refuse cases also check that the refusal reason fits the kind (DML, PII, unanswerable). Gold SQL gets the same `LIMIT 200` rule as agent SQL. G26 and G28 cannot tell some wrong denominators apart; their notes say which.
+- **Verified without the live model.** The pipeline runs end to end for all three variants with a mocked LLM (`python -m evals.run --mock`, which writes under `evals/results/mock` and never touches the reports), every gold SQL runs against the generated data, the scorer rejects ten plausible wrong answers (hedged numbers, coarser rounding, swapped labels), and the guardrails and the database role are tested against a red-team list.
+- **What the numbers do not claim.** `warehouse/schema_docs.yaml` is an agreed semantic layer, the product of the engagement and not a trick for the benchmark. The gold questions were written from the data and the same people's phrasing, so the score measures how well the layer and the model cope with questions the layer was designed for. It does not measure questions nobody anticipated. A held-out set (10-15 questions written after the docs were frozen, ideally by the leads) is planned, not built; see `docs/engagement.md`.
 
 ## Run it
 
-See `docs/runbook.md`. Short version: copy `.env.example` to `.env` and set the passwords, `docker compose up -d db`, `python -m warehouse.load`, `python -m pytest -q`, `uvicorn app.main:app --port 8400`.
+Copy `.env.example` to `.env` and set the passwords, then:
 
-## What this is, and is not
+```
+docker compose up -d db
+python -m warehouse.load
+python -m pytest -q
+uvicorn app.main:app --port 8400
+```
 
-`warehouse/schema_docs.yaml` is an agreed semantic layer: the definitions of revenue, return rate, repeat customer, fiscal quarter and the vague time words, written down with the analysts' question types in mind. It is the product of the engagement, not a trick for the benchmark, and it is why the agent beats a bare schema. The gold questions were written from the data and the same people's phrasing, so a gold-set score measures how well the layer and the model cope with questions the layer was designed for. It does not measure questions nobody anticipated. A held-out set (10-15 questions written after the docs were frozen, ideally by the leads) is planned, not built; see `docs/engagement.md`.
+The page is at `http://localhost:8400`; the API is `POST /ask`. The live eval needs the warehouse loaded and Ollama running: `python -m evals.run --variant all` (GPU-bound, about an hour; run one eval at a time). Full steps and ports are in `docs/runbook.md`.
 
-## Limits
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `app/` | `agent.py` (ask), `guardrails.py`, `db.py`, `llm.py`, `prompts.py`, `schema_docs.py`, `main.py`, `static/` |
+| `warehouse/` | `generate.py`, `load.py`, `schema.sql`, `roles.sql`, `schema_docs.yaml`, `products.json` |
+| `evals/` | `gold.jsonl`, `scoring.py` (`score_case`), `run.py`, `validate_gold.py`, `mock_llm.py`, the run reports |
+| `tests/` | guardrails, agent (mocked LLM), scoring, warehouse, database integration, prompts and API |
+| `docs/` | `spec.md`, `runbook.md`, `engagement.md`, `diagrams/`, `media/` |
+
+Contract for project 5: `app.agent.ask(question) -> dict` with `sql`, `columns`, `rows`, `summary`, `refused`, `refused_reason`, `usage`; it never raises. `evals.scoring.score_case(case, result, conn)` is pure apart from the connection argument. Configuration is read from the settings object on every call, not cached at import: project 5 switches models in-process by setting `app.config.settings.ollama_model` (or the `OLLAMA_MODEL` env var before import). `ask(question, variant=...)` takes `agent`, `ddl` or `floor`.
+
+## Known limits
 
 - Local 27B model at IQ3: the prompt is about 3,000 tokens, so an 8k context is needed.
 - The model can still write a wrong but valid query; the SQL is always shown so it can be checked.
@@ -139,3 +162,6 @@ See `docs/runbook.md`. Short version: copy `.env.example` to `.env` and set the 
 ## How this was built
 
 Built with Claude Code as a pair programmer. Scope, design decisions and verification are mine. Larkfield Coffee Co. is a fictional customer; all data is synthetic. MIT licensed (see `LICENSE`).
+
+<!-- signature -->
+<p align="center"><img src="docs/media/signature.gif" width="300" alt="A cat called Mr. Fresh hitting a feeder camera"><br><sub>Signature GIF: <a href="https://commons.wikimedia.org/wiki/File:Mr._Fresh_punches_camera.gif">A cat called Mr. Fresh hitting a feeder camera</a> by Hello Street Cat, Public domain, via Wikimedia Commons.</sub></p>

@@ -1,0 +1,72 @@
+type: flow
+kicker: FDE Portfolio · 04
+title: How a question becomes checked SQL and a grounded answer
+columns:
+  - id: asker
+    tag: Channels
+    title: Ops and marketing leads
+    points:
+      - Local page or POST /ask
+      - English or light Hinglish
+      - Each question stands alone
+  - stack:
+      - id: screen
+        tag: Guard in
+        title: Question screen
+        points:
+          - Blatant write or personal-data requests declined before any model call
+      - id: prompt
+        tag: Context
+        title: Schema docs prompt
+        points:
+          - Every table and column with meaning and units
+          - Time-word conventions, sample values, three examples
+  - id: core
+    core:
+      tag: Agent loop
+      title: fusion27b:iq3 via Ollama
+      subtitle: Local, 8k context, INR 0 per query
+      children:
+        - id: sql
+          title: Write SQL
+          points:
+            - PLAN line plus one sql block, or REFUSE or UNANSWERABLE
+            - One correction round on a parser or database error
+        - id: parser
+          title: Check SQL
+          style: dark
+          points:
+            - Real lexer, one SELECT or WITH statement
+            - Table and function allowlist, LIMIT 200 added
+  - id: run
+    tag: Database role
+    title: Run read-only
+    points:
+      - analyst_ro, no privilege on dim_customer
+      - READ ONLY transaction, 5 s timeout, 201 rows at most
+  - stack:
+      - id: verify
+        tag: Guard out
+        title: Check the summary
+        points:
+          - Every number must appear in the rows
+          - Lowest or highest claims must name the right row
+      - id: answer
+        tag: Output
+        title: Answer
+        points:
+          - The SQL, up to 50 rows, a 1-2 sentence summary
+          - A failed summary is dropped; the rows stay
+          - Request logged with emails and phones masked
+band:
+  title: Postgres 17, simulated Larkfield warehouse
+  text: 8,034 orders · 13,596 order lines · 564 returns · 1,456 tickets · customers via a PII-free view
+  right: "Gold set: 36/40"
+edges:
+  - {from: asker, to: screen}
+  - {from: screen, to: core}
+  - {from: prompt, to: core}
+  - {from: core, to: run}
+  - {from: run, to: verify}
+  - {from: verify, to: answer}
+  - {from: run, to: band, dashed: true}

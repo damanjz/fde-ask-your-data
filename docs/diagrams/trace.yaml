@@ -1,0 +1,21 @@
+type: trace
+kicker: FDE Portfolio · 04
+title: "One question, traced: cancellation rate by payment method"
+lanes:
+  - {id: lead, label: Lead}
+  - {id: app, label: Agent app}
+  - {id: llm, label: Agent (LLM), hot: true}
+  - {id: checks, label: Checks}
+  - {id: db, label: Postgres}
+steps:
+  - {from: lead, to: app, text: "“Cancellation rate by payment method this year” (G07)"}
+  - {from: app, to: llm, text: "screen_question passes; schema_docs.yaml prompt plus the question"}
+  - {from: llm, to: app, text: "PLAN plus one sql block: GROUP BY payment_method on fact_orders"}
+  - {from: app, to: checks, text: "validate_sql: one SELECT, allowed tables, LIMIT 200 added"}
+  - {from: app, to: db, text: "run_query as analyst_ro, BEGIN READ ONLY, 5 s timeout"}
+  - {from: db, to: app, text: "6 rows: cod 7.5, credit_card 3.0, upi 2.3 ... wallet 1.7", tone: muted}
+  - {from: app, to: llm, text: "summary prompt with the columns and rows"}
+  - {from: llm, to: app, text: "“UPI has the lowest cancellation rate at 2.3%”"}
+  - {from: app, to: checks, text: "check_summary: numbers match the rows; lowest fails, wallet is lowest"}
+  - {from: app, to: lead, text: "SQL and 6 rows shown; summary dropped and logged", tone: accent}
+note: "Lanes are components; arrows are calls in order. The grey arrow is a database read. SQL and rows are from the stored G07 run; the superlative check was added after it and replayed on that output."
